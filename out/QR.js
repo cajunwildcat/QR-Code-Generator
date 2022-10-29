@@ -98,42 +98,42 @@ var QR = function (V) {
     var size = ((V - 1) * 4) + 21;
     var newCode = [];
     //generate the orientation anchors and timing patterns
-    for (var row = 0; row < size; row++) {
-        newCode[row] = [];
-        for (var column = 0; column < size; column++) {
+    for (var y = 0; y < size; y++) {
+        newCode[y] = [];
+        for (var x = 0; x < size; x++) {
             //top left anchor
-            if (row < OrientationAnchor.length && column < OrientationAnchor.length) {
-                newCode[row][column] = OrientationAnchor[column][row];
+            if (y < OrientationAnchor.length && x < OrientationAnchor.length) {
+                newCode[y][x] = OrientationAnchor[x][y];
             }
             //top right anchor
-            else if (row < OrientationAnchor.length && column > size - 9) {
-                newCode[row][column] = OrientationAnchor[Math.abs(column - (size - 1))][row];
+            else if (y < OrientationAnchor.length && x > size - 9) {
+                newCode[y][x] = OrientationAnchor[Math.abs(x - (size - 1))][y];
             }
             //bottom left anchor
-            else if (row > size - 9 && column < OrientationAnchor.length) {
-                newCode[row][column] = OrientationAnchor[column][Math.abs(row - (size - 1))];
+            else if (y > size - 9 && x < OrientationAnchor.length) {
+                newCode[y][x] = OrientationAnchor[x][Math.abs(y - (size - 1))];
             }
             //horizontal timing
-            else if (row === 6) {
-                if (column % 2 === 0) {
-                    newCode[row][column] = 1;
+            else if (y === 6) {
+                if (x % 2 === 0) {
+                    newCode[y][x] = 1;
                 }
                 else {
-                    newCode[row][column] = 0;
+                    newCode[y][x] = 0;
                 }
             }
             //vertical timing
-            else if (column === 6) {
-                if (row % 2 === 0) {
-                    newCode[row][column] = 1;
+            else if (x === 6) {
+                if (y % 2 === 0) {
+                    newCode[y][x] = 1;
                 }
                 else {
-                    newCode[row][column] = 0;
+                    newCode[y][x] = 0;
                 }
             }
             //fill the rest of the area with empty values
             else {
-                newCode[row][column] = -1;
+                newCode[y][x] = -1;
             }
         }
     }
@@ -182,21 +182,19 @@ var addFormat = function (qr, ecl, mask) {
     //fill in the QR code with the correct bits
     var newCode = qr.code;
     //format bits under the top left anchor and next to the bottom left anchor
-    for (var column = 0; column < 8; column++) {
-        newCode[qr.size - 1 - column][8] = +formatBits[column];
+    for (var x = 0; x < 7; x++) {
+        //bottom left
+        newCode[qr.size - 1 - x][8] = +formatBits[x];
         //start of timing pattern, skip that bit
-        if (column === 6) {
-            continue;
-        }
-        newCode[8][column] = +formatBits[column - Math.floor(column / 6)];
+        //top left
+        newCode[8][x + Math.floor(x / 6)] = +formatBits[x];
     }
     //format bits to the right of the top left anchor and under the top right anchor
-    for (var row = 8; row >= 0; row--) {
-        newCode[8][qr.size - row] = +formatBits[15 - row];
-        if (row === 6) {
-            continue;
-        }
-        newCode[row][8] = +formatBits[15 - row - +!Math.floor(row / 6)];
+    for (var y = 8; y > 0; y--) {
+        //top right
+        newCode[8][qr.size - y] = +formatBits[15 - y];
+        //top left
+        newCode[y - (+!Math.floor(y / 7))][8] = +formatBits[15 - y];
     }
     return {
         version: qr.version,
@@ -205,44 +203,34 @@ var addFormat = function (qr, ecl, mask) {
     };
 };
 var addMessage = function (qr, mode, value) {
-    var newCode = Array(qr.size);
-    var _loop_1 = function (i) {
-        var openBits = 0;
-        qr.code[i].forEach(function (bit) { return bit === -1 ? openBits++ : 0; });
-        newCode[i] = Array(openBits);
-    };
-    for (var i = 0; i < newCode.length; i++) {
-        _loop_1(i);
-    }
-    console.log(newCode);
-    var bitPerChar = 0;
+    var bitsPerChar = 0;
     if (qr.version >= 1 && qr.version <= 9) {
         switch (mode) {
             case 'N':
-                bitPerChar = 10;
+                bitsPerChar = 10;
                 break;
             case 'A':
-                bitPerChar = 9;
+                bitsPerChar = 9;
                 break;
             case 'B':
             case 'K':
-                bitPerChar = 8;
+                bitsPerChar = 8;
                 break;
         }
     }
     else if (qr.version >= 10 && qr.version <= 26) {
         switch (mode) {
             case 'N':
-                bitPerChar = 12;
+                bitsPerChar = 12;
                 break;
             case 'A':
-                bitPerChar = 11;
+                bitsPerChar = 11;
                 break;
             case 'B':
-                bitPerChar = 16;
+                bitsPerChar = 16;
                 break;
             case 'K':
-                bitPerChar = 10;
+                bitsPerChar = 10;
                 break;
         }
     }
@@ -250,17 +238,81 @@ var addMessage = function (qr, mode, value) {
     else {
         switch (mode) {
             case 'N':
-                bitPerChar = 14;
+                bitsPerChar = 14;
                 break;
             case 'A':
-                bitPerChar = 13;
+                bitsPerChar = 13;
                 break;
             case 'B':
-                bitPerChar = 16;
+                bitsPerChar = 16;
                 break;
             case 'K':
-                bitPerChar = 12;
+                bitsPerChar = 12;
                 break;
+        }
+    }
+    var message = '';
+    //determine mode bits
+    var modeBits;
+    switch (mode) {
+        case 'N':
+            modeBits = '0001';
+            break;
+        case 'A':
+            modeBits = '0010';
+            break;
+        case 'B':
+            modeBits = '0100';
+            break;
+        case 'K':
+            modeBits = '1000';
+            break;
+    }
+    message += modeBits;
+    //calculate length bits
+    var lengthBits = convertToBits(value.length, bitsPerChar);
+    message += lengthBits;
+    //convert message to binary
+    var messageBits = '';
+    for (var i = 0; i < value.length; i++) {
+        messageBits += convertToBits(value.charCodeAt(i), bitsPerChar);
+    }
+    message += messageBits;
+    //add end bits
+    //need to double check this
+    message += '0000';
+    //make a multiple of 8
+    while (message.length % 8 != 0) {
+        message += '0';
+    }
+    var minLength = 55 * 8;
+    for (var i = 1; message.length < minLength; i++) {
+        if (i % 2 === 0) {
+            message += '00010001';
+        }
+        else {
+            message += '11101100';
+        }
+    }
+    //add error correction
+    //copy encoded message onto QR
+    var dir = 1;
+    for (var x = qr.size - 1, y = qr.size - 1, codeIndex = 0; codeIndex < message.length; y -= dir) {
+        //hit bottom of qr code
+        //hit top of qr code
+        if (y === qr.size ||
+            y === -1) {
+            dir *= -1;
+            x -= 2;
+        }
+        //empty space in code
+        else {
+            if (qr.code[y][x] === -1) {
+                qr.code[y][x] = +message[codeIndex++];
+            }
+            if (qr.code[y][x - 1] === -1) {
+                qr.code[y][x - 1] = +message[codeIndex++];
+            }
         }
     }
     return {
@@ -270,6 +322,12 @@ var addMessage = function (qr, mode, value) {
     };
 };
 //<===========================>
+var convertToBits = function (value, bits) {
+    var newVal = value.toString(2);
+    for (; newVal.length < 8; newVal = '0' + newVal)
+        ;
+    return newVal;
+};
 //converts a binary representation of a QR code into a string representation
 //using the full block unicode character (u2588) and spaces
 var convertToBlocks = function (qr) {
@@ -282,8 +340,35 @@ var convertToBlocks = function (qr) {
     }
     return newQR;
 };
-var V1 = QR(1);
-V1 = addFormat(V1, 'L', 1);
-V1 = addMessage(V1, 'B', 'Hello World');
-convertToBlocks(V1).forEach(function (s) { return console.log(s); });
+var consoleLogQR = function (qr) {
+    convertToBlocks(qr).forEach(function (s) { return console.log(s); });
+};
+var canvas = document.querySelector('#canvas');
+var setCanvasSize = function (qr) {
+    canvas.height = qr.size;
+    canvas.width = qr.size;
+};
+var fillCanvas = function (qr) {
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'gray';
+    ctx.fillRect(0, 0, qr.size, qr.size);
+    for (var y = 0; y < qr.size; y++) {
+        for (var x = 0; x < qr.size; x++) {
+            if (qr.code[y][x] === 1) {
+                ctx.fillStyle = 'black';
+                ctx.fillRect(x, y, 1, 1);
+            }
+            else if (qr.code[y][x] === 0) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    }
+};
+var V1 = QR(3);
+V1 = addFormat(V1, 'L', 7);
+V1 = addMessage(V1, 'B', 'Mr. Watson, come here - I want to see you.');
+//consoleLogQR(V1);
+setCanvasSize(V1);
+fillCanvas(V1);
 //# sourceMappingURL=QR.js.map

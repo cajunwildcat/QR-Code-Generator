@@ -1,0 +1,13 @@
+#app {
+    width: 95vw;
+    height: 95vh;
+    padding: 0rem;
+    display: flex;
+}
+
+#canvas {
+    margin: auto;
+    width: 90vh;
+    height: 90vh;
+    image-rendering: crisp-edges;
+}
